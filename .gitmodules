@@ -1,0 +1,3 @@
+[submodule "ocre-sdk"]
+	path = ocre-sdk
+	url = https://github.com/project-ocre/ocre-sdk.git

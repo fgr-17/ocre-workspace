@@ -31,7 +31,6 @@ docker exec -it ocre-dev bash
 
 or
 
-
 ~~~bash
 docker exec -it ocre-sdk bash
 ~~~
@@ -39,6 +38,49 @@ docker exec -it ocre-sdk bash
 ## Usage
 
 ### Generating WASM files from example containers
+
+To generate Ocre containers from the examples contained in Ocre-SDK, follow the steps:
+
+1. Jump into the `ocre-sdk` container
+
+~~~bash
+docker compose up -d
+docker exec -it ocre-sdk bash
+~~~
+
+2. cd into the example you want to build and create a `build` dir:
+
+~~~bash
+cd /workspace/ocre-sdk/generic/blinky
+mkdir -p build
+~~~
+
+3. Run CMake and Make:
+
+~~~bash
+cd build
+cmake ..
+make
+~~~
+
+Done! you should see something like this:
+
+~~~bash
+[ 25%] Building C object ocre-sdk-build/CMakeFiles/ocre_api.dir/ocre_api.c.obj
+/workspace/ocre-sdk/ocre-sdk/ocre_api.c:174:9: warning: label at end of compound statement is a C23 extension
+      [-Wc23-extensions]
+  174 |         }
+      |         ^
+1 warning generated.
+[ 50%] Linking C static library libocre_api.a
+[ 50%] Built target ocre_api
+[ 75%] Building C object CMakeFiles/blinky.wasm.dir/main.c.obj
+[100%] Linking C executable blinky.wasm
+[100%] Built target blinky.wasm
+~~~
+
+The outuput file of this process is `blinky.wasm` and should be placed
+into `build` dir
 
 ### Running ocre containres on Zephyr systems
 
