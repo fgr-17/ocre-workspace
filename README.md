@@ -1,6 +1,20 @@
-# Ocre Zephyr Workspace
+# Ocre/Zephyr Workspace
 
 This repository generates a basic workspace for creating Ocre containers and deploying them on a Zephyr ecosystem
+
+## Downloading the repo
+
+**Important**: this repository contains 2 submodules, that contains 1 submodule each. To avoid running into future issues, download everything at once by running:
+
+~~~bash
+git clone --recurse-submodules <repo>
+~~~
+
+If you are reading this from your local copy of the repo, run this:
+
+~~~bash
+git submodule update --init --recursive
+~~~
 
 ## Installation
 
@@ -9,7 +23,7 @@ The repository contains two Docker containers, as [compose.yml](./compose.yml) s
 * Ocre SDK: Contains the basic SDK to generate new Ocre containers or deploy some examples
 * Ocre Runtime: Contains the ocre engine and some helper scripts. It can run on Zephyr or Linux
 
-First things first, you need to create and deploy the containers using the compose file:
+
 
 ```bash
 cd ocre-worskpace
@@ -81,6 +95,10 @@ Done! you should see something like this:
 
 The outuput file of this process is `blinky.wasm` and should be placed
 into `build` dir
+
+### Building ocre for Zephyr targets
+
+First thing you need is the
 
 ### Running ocre containres on Zephyr systems
 
