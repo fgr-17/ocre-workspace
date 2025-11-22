@@ -1,0 +1,8 @@
+FROM ghcr.io/zephyrproject-rtos/zephyr-build:latest
+
+USER root
+WORKDIR /workspace
+
+RUN touch /etc/bash.bashrc && chmod 644 /etc/bash.bashrc && \
+    echo "alias ll='ls -la --color=auto'" >> /etc/bash.bashrc
+CMD ["/bin/bash"]

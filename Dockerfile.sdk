@@ -1,0 +1,6 @@
+FROM ghcr.io/webassembly/wasi-sdk
+
+WORKDIR /workspace
+
+RUN echo "alias ll='ls -la --color=auto'" >> /etc/bash.bashrc
+CMD ["/bin/bash"]
