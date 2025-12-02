@@ -2,7 +2,7 @@
 
 This repository generates a basic workspace for creating Ocre containers and deploying them on a Zephyr ecosystem
 
-## Downloading the repo
+## Downloading the repo correctly
 
 **Important**: this repository contains 2 submodules, that contains 1 submodule each. To avoid running into future issues, download everything at once by running:
 
@@ -16,14 +16,43 @@ If you are reading this from your local copy of the repo, run this:
 git submodule update --init --recursive
 ~~~
 
-## Installation
+Addionally, you probably want to run this last commit on the root repo every time you update something in the repo, at least for healthy check. Read this [ref](https://git-scm.com/book/en/v2/Git-Tools-Submodules) to dig deeper on submodules management
+
+## Workspace layout
 
 The repository contains two Docker containers, as [compose.yml](./compose.yml) shows:
 
-* Ocre SDK: Contains the basic SDK to generate new Ocre containers or deploy some examples
-* Ocre Runtime: Contains the ocre engine and some helper scripts. It can run on Zephyr or Linux
+* **Ocre SDK**:
+    * brief: Contains the basic SDK to generate new Ocre containers or deploy some examples
+    * mapped in [ocre-sdk](./ocre-sdk/) dir
+* **Ocre Runtime**:
+    * brief: Contains the ocre engine and some helper scripts. It can run on Zephyr or Linux
+    * mapped in [application](./application/) dir
+
+~~~mermaid
+stateDiagram-v2
+
+    state "OcreSDK" as ocre-sdk {
+        sdk: Ocre SDK
+        samples: generic/examples
+        wasm: Output `.wasm` file
+        sdk --> wasm
+        samples --> wasm
+    }
+
+    state "OcreRuntime" as ocre-runtime {
+        zephyr: Zephyr SDK
+        app: `./application` West project
+        zephyr --> app
+    }
+
+    wasm --> app
 
 
+~~~
+
+
+## Setting up the environment
 
 ```bash
 cd ocre-worskpace
@@ -32,12 +61,12 @@ docker compose up -d
 
 After that, you should have 2 different containers, that should be visible when running `docker ps`:
 
-* ocre-dev
+* ocre-dev >> mapped in `/application` dir for west compatibility
 * ocre-sdk
 
 Both containers are mounting the working directory to have full visibility.
 
-You can jump into the console of each container by running:
+You can jump into the terminal of each container by running:
 
 ~~~bash
 docker exec -it ocre-dev bash
@@ -98,9 +127,114 @@ into `build` dir
 
 ### Building ocre for Zephyr targets
 
-First thing you need is the
+First thing you need is the `ocre-dev` container up and running. Then jump into the terminal:
 
-### Running ocre containres on Zephyr systems
+~~~bash
+docker exec -it ocre-dev bash
+~~~
+
+This container has everything you need to compile Zephyr targets, mainly West and the needed env variables. Everything should be configured from the [entrypoint-dev.sh](./scripts/entrypoint-dev.sh) script. You can check printing `ZEPHYR_BASE` env var inside the container to check that:
+
+~~~bash
+root@3949daec268e:/workspace# echo $ZEPHYR_BASE/
+/workspace/zephyr/
+~~~
+
+This script also initializes the Ocre-Runtime project, mapped into the `application` directory (this name is because it seems the project was named like this when it was created, so to avoid conflicts with west...) by running `west -l /workspace/application`[link](./scripts/entrypoint-dev.sh#L27), so that way the ocre-runtime repo can be managed as a submodule by the main repo, instead of letting west manage the version control.
+
+Once the application is initialized, ocre-runtime container takes a while to download all the dependencies (`west update`) the first time that is created. You can check if the progess of the process by checking the logs of the container (`docker logs ocre-dev`), or waiting until you see the message `"West workspace initialized successfully"`.
+
+Finally, everything should be ready to build the Ocre application for Zephyr. 
+
+For example, to run the generic/blinky example on the default board, you can follow this 2 steps (summarizing all the previoius info):
+
+
+#### Terminal#1: Compile blinky example in `ocre-sdk` container:
+
+Get into the `ocre-sdk` container and build:
+
+~~~bash
+docker exec -it ocre-sdk bash
+cd ocre-sdk/generic/blinky
+mkdir -p build && cd build
+cmake ..
+make
+~~~
+
+You should see something like this:
+
+~~~bash
+root@68bc3f6ddfac:/workspace/ocre-sdk/generic/blinky/build# cmake ..
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/ocre-sdk/generic/blinky/build
+root@68bc3f6ddfac:/workspace/ocre-sdk/generic/blinky/build# make
+[ 25%] Building C object ocre-sdk-build/CMakeFiles/ocre_api.dir/ocre_api.c.obj
+/workspace/ocre-sdk/ocre-sdk/ocre_api.c:174:9: warning: label at end of compound statement is a C23
+      extension [-Wc23-extensions]
+  174 |         }
+      |         ^
+1 warning generated.
+[ 50%] Linking C static library libocre_api.a
+[ 50%] Built target ocre_api
+[ 75%] Building C object CMakeFiles/blinky.wasm.dir/main.c.obj
+[100%] Linking C executable blinky.wasm
+[100%] Built target blinky.wasm
+~~~
+
+#### Terminal#2: Use the `blinky.wasm` file into Zephyr build and run the example
+
+Get into the container and use the `build.sh` script to compile. Pass the `blinky.wasm` file as `-f` parameter:
+
+~~~bash
+docker exec -it ocre-dev bash
+cd /workspace/application
+./build.sh -t z -f ../ocre-sdk/generic/blinky/build/blinky.wasm -r
+~~~
+
+You should see the blinky example starting on the default board:
+
+~~~bash
+*** Booting Zephyr OS build v4.2.0-32-g8d0d392f8cc7 ***
+I: /lfs mount: 0
+
+I: OCRE common initialized successfully
+I: Registered cleanup handler for type 0
+I: Timer system initialized
+I: Registered cleanup handler for type 3
+I: Messaging system initialized
+I: Container Supervisor started.
+
+ocre:~$ 
+
+Ocre runtime started
+I: Request to create new container in slot: 0
+I: Request to run container in slot:0
+I: EVENT_CREATE_CONTAINER
+I: Allocating memory for container 0
+I: File path: /lfs/ocre/images/blinky.bin, size: 21068
+I: Loaded binary to buffer for container 0
+W: Created container:0
+I: Created container in slot:0
+I: EVENT_RUN_CONTAINER
+I: Instantiating WASM runtime for container:0
+I: Module registered: 0x80ebb00
+W: Running container:0 in dedicated thread
+I: Started container in slot:0
+I: Container thread 0 started
+=== Generic Blinky Example (Printf Only) ===
+This example demonstrates software blinking without physical hardware.
+I: Registered dispatcher for type 0: timer_callback
+I: Incremented resource count: type=0, count=1
+I: Created timer 1 for module 0x80ebb00
+Timer created. ID: 1, Interval: 1000ms
+I: Started timer 1 with interval 1000ms, periodic=1
+Generic blinking started. You should see 'blink' messages every 1000ms.
+Press Ctrl+C to stop.
+blink (count: 1, state: -)
+blink (count: 2, state: +)
+...
+~~~
 
 ## Contributing
 
