@@ -1,0 +1,50 @@
+# Build directory and its contents
+build/
+bin/
+out/
+
+# Compilation artifacts
+*.o
+*.obj
+*.d
+*.dep
+*.a
+*.lib
+*.elf
+*.hex
+*.bin
+*.map
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# Editor and IDE specific files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+*.DS_Store
+
+# West build-related files (if using west)
+west.yml.lock
+.west/
+
+# Zephyr-specific generated files
+zephyr/.config
+zephyr/include/generated/
+zephyr/cmake/generated/
+
+# Out-of-tree module build directories
+modules/*/build/
+
+# Other potential temporary or generated files
+tmp/
+
+bootloader/
+modules/
+zephyr/
