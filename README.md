@@ -280,6 +280,37 @@ cd /workspace/application
 ./build.sh -t z -f ../my_blinky/build/my_blinky.wasm -r
 ~~~
 
+~~~mermaid
+flowchart TD
+    zephyr[Zephyr SDK]
+    binary[binary zephyr.elf]
+    container[container.wasm]
+
+    subgraph "OcreSDK"
+        sdk[Ocre SDK]
+        wasm_runtime[wasm-micro-runtime]
+    end
+
+    subgraph "OcreRuntime"
+        app[`./application` Zephyr project]
+        container_moved[container.wasm]
+    end
+
+    subgraph "myBlinky"
+        my_blinky_app[my_blinky_app]
+    end
+
+    sdk --> container
+    wasm_runtime --> container
+    my_blinky_app --> container
+
+
+    container --> container_moved
+    
+    zephyr --> binary
+    container_moved --> app
+    app --> binary
+~~~
 
 ## Contributing
 
