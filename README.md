@@ -286,17 +286,17 @@ flowchart TD
     binary[binary zephyr.elf]
     container[container.wasm]
 
-    subgraph "OcreSDK"
+    subgraph "**OcreSDK**"
         sdk[Ocre SDK]
         wasm_runtime[wasm-micro-runtime]
     end
 
-    subgraph "OcreRuntime"
+    subgraph "**OcreRuntime**"
         app[`./application` Zephyr project]
         container_moved[container.wasm]
     end
 
-    subgraph "myBlinky"
+    subgraph "**myBlinky**"
         my_blinky_app[my_blinky_app]
     end
 

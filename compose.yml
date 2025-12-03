@@ -21,8 +21,5 @@ services:
     user: root
     devices:
       - /dev:/dev
-    privileged: true
-    group_add:
-      - dialout
 
 
