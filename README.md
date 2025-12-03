@@ -16,18 +16,17 @@ If you are reading this from your local copy of the repo, run this:
 git submodule update --init --recursive
 ~~~
 
-Addionally, you probably want to run this last commit on the root repo every time you update something in the repo, at least for healthy check. Read this [ref](https://git-scm.com/book/en/v2/Git-Tools-Submodules) to dig deeper on submodules management
+Addionally, you probably want to run this last command on the root repo every time you update something in the repo, at least as a healthy check. Read this [ref](https://git-scm.com/book/en/v2/Git-Tools-Submodules) to dig deeper on submodules management
 
 ## Workspace layout
 
 The repository contains two Docker containers, as [compose.yml](./compose.yml) shows:
 
 * **Ocre SDK**:
-    * brief: Contains the basic SDK to generate new Ocre containers or deploy some examples
-    * mapped in [ocre-sdk](./ocre-sdk/) dir
+    * brief: Contains the basic SDK to generate new Ocre containers or deploy some examples mapped in [`/ocre-sdk'](./ocre-sdk/) dir
 * **Ocre Runtime**:
     * brief: Contains the ocre engine and some helper scripts. It can run on Zephyr or Linux
-    * mapped in [application](./application/) dir
+    * mapped in [`/application`](./application/) dir
 
 ~~~mermaid
 stateDiagram-v2
@@ -35,20 +34,27 @@ stateDiagram-v2
     state "OcreSDK" as ocre-sdk {
         sdk: Ocre SDK
         samples: generic/examples
-        wasm: Output `.wasm` file
-        sdk --> wasm
-        samples --> wasm
+        wasm_runtime: wasm-micro-runtime
+        container: container.wasm
+        sdk --> container
+        samples --> container
+        wasm_runtime --> container
+
     }
 
     state "OcreRuntime" as ocre-runtime {
-        zephyr: Zephyr SDK
-        app: `./application` West project
-        zephyr --> app
+        app: `./application` Zephyr project
+        container_moved: container.wasm
     }
 
-    wasm --> app
+    zephyr: Zephyr SDK
+    binary: binary [zephyr.elf]
 
-
+    container --> container_moved
+    
+    zephyr --> binary
+    container_moved --> app
+    app --> binary
 ~~~
 
 
@@ -235,6 +241,45 @@ blink (count: 1, state: -)
 blink (count: 2, state: +)
 ...
 ~~~
+
+## Creating your own wasm app (your own container)
+
+To avoid modifying the [`./ocre-sdk`](./ocre-sdk/) repository when creating apps, I created a copy of the [`generic/blinky`](./ocre-sdk/generic/blinky/) example into the root dir of the repo and renamed as [`my_blinky`](./my_blinky/). Dir layout will look like this:
+
+~~~bash
+├── ocre-sdk/        # needed to create your wasm container
+├── application/     # zephyr project that has to embed your wasm container
+├── ...
+└── my_blinky/       # << your project! normal dir or git submodule (better!)
+~~~
+
+This would be my recommended flow for creating new wasm apps:
+
+* Make a copy of this repo, or just select "Use this template in GitHub"
+* Update the Ocre-SDK and Ocre-Runtime submodules to the latest or any tag you prefer/need
+* make a copy of the most similar example into the root dir of this repo (or even better encapsulated, track it as a submodule)
+* Compile your wasm app in the Ocre-SDK container as shown in [this section](#generating-wasm-files-from-example-containers)
+
+
+~~~bash
+docker compose up -d
+docker exec -it ocre-sdk bash
+
+cd /workspace/my_blinky
+mkdir -p build
+cd build
+cmake ..
+make
+~~~
+
+* Then, as you may guess, you can follow the steps described in [this section](#building-ocre-for-zephyr-targets). So, jump into the ocre-runtime container and run the `build.sh` script:
+
+~~~bash
+docker exec -it ocre-dev bash
+cd /workspace/application
+./build.sh -t z -f ../my_blinky/build/my_blinky.wasm -r
+~~~
+
 
 ## Contributing
 
