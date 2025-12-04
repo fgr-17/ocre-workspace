@@ -19,7 +19,4 @@ services:
     stdin_open: true
     tty: true
     user: root
-    devices:
-      - /dev:/dev
-
 
