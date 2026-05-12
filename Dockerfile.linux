@@ -1,0 +1,25 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    cmake \
+    ninja-build \
+    build-essential \
+    git \
+    python3 \
+    file \
+    xxd \
+    llvm-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git config --global --add safe.directory /workspace/ocre-runtime && \
+    git config --global --add safe.directory /workspace/ocre-runtime/ocre-sdk && \
+    git config --global --add safe.directory /workspace/ocre-runtime/wasm-micro-runtime
+
+WORKDIR /workspace
+
+RUN echo "alias ll='ls -la --color=auto'" >> /etc/bash.bashrc
+
+CMD ["/bin/bash"]
