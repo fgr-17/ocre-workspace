@@ -33,7 +33,7 @@ Docker Compose defines **three** services ([`compose.yml`](./compose.yml)):
 | Service | Image | Purpose |
 |---------|--------|---------|
 | **ocre-wasm** | WASI SDK ([`Dockerfile.sdk`](./Dockerfile.sdk)) | Build `.wasm` guests with CMake. |
-| **ocre-zephyr** | [`zephyr-build:v0.29.2`](./Dockerfile.dev) | `west` + Zephyr SDK matching Ocre’s Zephyr 4.4 line; build/run **`native_sim`** (no HIL). |
+| **ocre-zephyr** | [`zephyr-build:v0.29.2`](./Dockerfile.zephyr) | `west` + Zephyr SDK matching Ocre’s Zephyr 4.4 line; build/run **`native_sim`** (no HIL). |
 | **ocre-linux** | Ubuntu 22.04 ([`Dockerfile.linux`](./Dockerfile.linux)) | Native CMake build of the posix Ocre samples. |
 
 ```mermaid
@@ -80,11 +80,51 @@ docker compose up -d ocre-zephyr --force-recreate
 
 After upgrading this template, run `west update` once inside `ocre-runtime` (or from the Zephyr container: `cd /workspace/ocre-runtime && west update`) so the Zephyr tree matches [`ocre-runtime/west.yml`](./ocre-runtime/west.yml).
 
-Check Zephyr:
+Check Zephyr (note: `ZEPHYR_BASE` is set only after sourcing the env script):
 
 ```bash
-docker exec -it ocre-zephyr bash -lc 'echo $ZEPHYR_BASE'
+docker exec -it ocre-zephyr bash -lc 'source /workspace/zephyr/zephyr-env.sh && echo "$ZEPHYR_BASE"'
 ```
+
+## Quick validation (copy-paste)
+
+After `docker compose build` (or at least `docker compose build ocre-zephyr` when you change the Zephyr Dockerfile):
+
+```bash
+cd ocre-workspace
+docker compose up -d --remove-orphans
+```
+
+1. **Wait for west** (first start can take many minutes). Until you see a success line, Zephyr builds will fail:
+
+```bash
+docker logs -f ocre-zephyr
+# look for: West workspace initialized successfully
+# Ctrl+C when you see it (or Sourcing Zephyr environment after a successful update)
+```
+
+2. **WASM guest** (optional if you only test the default Zephyr image):
+
+```bash
+docker exec ocre-wasm bash -lc 'cd /workspace/ocre-runtime/ocre-sdk/generic/blinky && mkdir -p build && cd build && cmake .. && make'
+```
+
+3. **Zephyr `native_sim`** — build once, then run. The run step **keeps the simulator process alive** (like a board firmware loop); stop with **Ctrl+C** or wrap in `timeout`:
+
+```bash
+docker exec -it ocre-zephyr bash -lc 'source /workspace/zephyr/zephyr-env.sh && cd /workspace && west build -p always -b native_sim ocre-runtime/src/samples/mini/zephyr'
+docker exec -it ocre-zephyr bash -lc 'source /workspace/zephyr/zephyr-env.sh && cd /workspace/build && timeout 15s west build -t run'
+```
+
+Use the first `west build` **without** `-- -DOCRE_INPUT_FILE=...` to use the sample’s bundled `hello-world.wasm` (most reliable). Add `OCRE_INPUT_FILE` only when you intentionally inject another `.wasm`.
+
+4. **Linux posix mini**:
+
+```bash
+docker exec ocre-linux bash -lc 'cd /workspace/ocre-runtime && git submodule update --init --recursive && rm -rf build && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DOCRE_BUILD_DEMO_CONTAINERS=OFF && make -j$(nproc) ocre_mini && timeout 5s ./src/samples/mini/posix/ocre_mini'
+```
+
+If **Zephyr “does not respond”**, it is usually either (a) **`west update` still running**—check `docker logs ocre-zephyr`, or (b) **`west build -t run` waiting in the foreground**—use `timeout` or an interactive `docker exec -it` and Ctrl+C.
 
 ## Build a guest WASM (nested `ocre-sdk` examples)
 

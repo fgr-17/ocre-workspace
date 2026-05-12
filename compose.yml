@@ -12,7 +12,7 @@ services:
   ocre-zephyr:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.zephyr
     container_name: ocre-zephyr
     volumes:
       - .:/workspace
