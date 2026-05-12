@@ -1,321 +1,180 @@
-# Ocre/Zephyr Workspace
+# Ocre / Zephyr workspace template
 
-This repository generates a basic workspace for creating Ocre containers and deploying them on a Zephyr ecosystem
+This repository is a small workspace for building **Ocre guest WASM** modules, running the **Ocre runtime on Zephyr** (`native_sim`, no hardware), and building the **Linux** posix sample—all via Docker.
 
-## Downloading the repo correctly
+## Clone and submodules
 
-**Important**: this repository contains 2 submodules, that contains 1 submodule each. To avoid running into future issues, download everything at once by running:
+There is **one** top-level submodule, [`ocre-runtime`](./ocre-runtime) ([project-ocre/ocre-runtime](https://github.com/project-ocre/ocre-runtime)), which contains nested submodules (`ocre-sdk`, `wasm-micro-runtime`, `tests/Unity`, and others).
 
-~~~bash
-git clone --recurse-submodules <repo>
-~~~
+Clone with everything initialized:
 
-If you are reading this from your local copy of the repo, run this:
+```bash
+git clone --recurse-submodules <repo-url>
+cd ocre-workspace
+```
 
-~~~bash
+If you already cloned without submodules:
+
+```bash
 git submodule update --init --recursive
-~~~
+```
 
-Addionally, you probably want to run this last command on the root repo every time you update something in the repo, at least as a healthy check. Read this [ref](https://git-scm.com/book/en/v2/Git-Tools-Submodules) to dig deeper on submodules management
+Re-run `git submodule update --init --recursive` after pulling updates. See the [Git submodule documentation](https://git-scm.com/book/en/v2/Git-Tools-Submodules) for details.
 
 ## Workspace layout
 
-The repository contains two Docker containers, as [compose.yml](./compose.yml) shows:
+| Path | Role |
+|------|------|
+| [`ocre-runtime/`](./ocre-runtime) | West manifest + Ocre runtime sources (submodule). Guest examples live under `ocre-runtime/ocre-sdk/generic/...`. |
+| [`my_blinky/`](./my_blinky/) | Example standalone guest app at the workspace root (optional pattern for your own WASM apps). |
 
-* **Ocre SDK**:
-    * brief: Contains the basic SDK to generate new Ocre containers or deploy some examples mapped in [`/ocre-sdk'](./ocre-sdk/) dir
-* **Ocre Runtime**:
-    * brief: Contains the ocre engine and some helper scripts. It can run on Zephyr or Linux
-    * mapped in [`/application`](./application/) dir
+Docker Compose defines **three** services ([`compose.yml`](./compose.yml)):
 
-~~~mermaid
-stateDiagram-v2
+| Service | Image | Purpose |
+|---------|--------|---------|
+| **ocre-wasm** | WASI SDK ([`Dockerfile.sdk`](./Dockerfile.sdk)) | Build `.wasm` guests with CMake. |
+| **ocre-zephyr** | [`zephyr-build:v0.29.2`](./Dockerfile.dev) | `west` + Zephyr SDK matching Ocre’s Zephyr 4.4 line; build/run **`native_sim`** (no HIL). |
+| **ocre-linux** | Ubuntu 22.04 ([`Dockerfile.linux`](./Dockerfile.linux)) | Native CMake build of the posix Ocre samples. |
 
-    state "OcreSDK" as ocre-sdk {
-        sdk: Ocre SDK
-        samples: generic/examples
-        wasm_runtime: wasm-micro-runtime
-        container: container.wasm
-        sdk --> container
-        samples --> container
-        wasm_runtime --> container
-
-    }
-
-    state "OcreRuntime" as ocre-runtime {
-        app: `./application` Zephyr project
-        container_moved: container.wasm
-    }
-
-    zephyr: Zephyr SDK
-    binary: binary [zephyr.elf]
-
-    container --> container_moved
-    
-    zephyr --> binary
-    container_moved --> app
-    app --> binary
-~~~
-
-
-## Setting up the environment
-
-```bash
-cd ocre-worskpace
-docker compose up -d
+```mermaid
+flowchart LR
+  subgraph containers [Docker]
+    wasm[ocre-wasm]
+    zephyr[ocre-zephyr]
+    linux[ocre-linux]
+  end
+  subgraph tree [Bind mount /workspace]
+    rt[ocre-runtime submodule]
+    sdk[ocre-sdk nested in runtime]
+  end
+  wasm --> tree
+  zephyr --> tree
+  linux --> tree
+  rt --> sdk
 ```
 
-After that, you should have 2 different containers, that should be visible when running `docker ps`:
+## Start the environment
 
-* ocre-dev >> mapped in `/application` dir for west compatibility
-* ocre-sdk
+```bash
+cd ocre-workspace
+docker compose up -d --remove-orphans
+docker ps
+```
 
-Both containers are mounting the working directory to have full visibility.
+Shells:
 
-You can jump into the terminal of each container by running:
+```bash
+docker exec -it ocre-wasm bash
+docker exec -it ocre-zephyr bash
+docker exec -it ocre-linux bash
+```
 
-~~~bash
-docker exec -it ocre-dev bash
-~~~
+The Zephyr container runs [`scripts/entrypoint-dev.sh`](./scripts/entrypoint-dev.sh): migrates an old west manifest path `application` → `ocre-runtime` if needed, runs `west init -l /workspace/ocre-runtime`, `west update`, `west zephyr-export`, and installs `littlefs-python` for the Ocre module. The first start can take a long time; watch `docker logs ocre-zephyr` until you see `West workspace initialized successfully`.
 
-or
+After upgrading this template, run `west update` once inside `ocre-runtime` (or from the Zephyr container: `cd /workspace/ocre-runtime && west update`) so the Zephyr tree matches [`ocre-runtime/west.yml`](./ocre-runtime/west.yml).
 
-~~~bash
-docker exec -it ocre-sdk bash
-~~~
+Check Zephyr:
 
-## Usage
+```bash
+docker exec -it ocre-zephyr bash -lc 'echo $ZEPHYR_BASE'
+```
 
-### Generating WASM files from example containers
+## Build a guest WASM (nested `ocre-sdk` examples)
 
-To generate Ocre containers from the examples contained in Ocre-SDK, follow the steps:
+Use **ocre-wasm**:
 
-1. Jump into the `ocre-sdk` container
-
-~~~bash
+```bash
 docker compose up -d
-docker exec -it ocre-sdk bash
-~~~
-
-2. cd into the example you want to build and create a `build` dir:
-
-~~~bash
-cd /workspace/ocre-sdk/generic/blinky
-mkdir -p build
-~~~
-
-3. Run CMake and Make:
-
-~~~bash
-cd build
-cmake ..
-make
-~~~
-
-Done! you should see something like this:
-
-~~~bash
-[ 25%] Building C object ocre-sdk-build/CMakeFiles/ocre_api.dir/ocre_api.c.obj
-/workspace/ocre-sdk/ocre-sdk/ocre_api.c:174:9: warning: label at end of compound statement is a C23 extension
-      [-Wc23-extensions]
-  174 |         }
-      |         ^
-1 warning generated.
-[ 50%] Linking C static library libocre_api.a
-[ 50%] Built target ocre_api
-[ 75%] Building C object CMakeFiles/blinky.wasm.dir/main.c.obj
-[100%] Linking C executable blinky.wasm
-[100%] Built target blinky.wasm
-~~~
-
-The outuput file of this process is `blinky.wasm` and should be placed
-into `build` dir
-
-### Building ocre for Zephyr targets
-
-First thing you need is the `ocre-dev` container up and running. Then jump into the terminal:
-
-~~~bash
-docker exec -it ocre-dev bash
-~~~
-
-This container has everything you need to compile Zephyr targets, mainly West and the needed env variables. Everything should be configured from the [entrypoint-dev.sh](./scripts/entrypoint-dev.sh) script. You can check printing `ZEPHYR_BASE` env var inside the container to check that:
-
-~~~bash
-root@3949daec268e:/workspace# echo $ZEPHYR_BASE/
-/workspace/zephyr/
-~~~
-
-This script also initializes the Ocre-Runtime project, mapped into the `application` directory (this name is because it seems the project was named like this when it was created, so to avoid conflicts with west...) by running `west -l /workspace/application`[link](./scripts/entrypoint-dev.sh#L27), so that way the ocre-runtime repo can be managed as a submodule by the main repo, instead of letting west manage the version control.
-
-Once the application is initialized, ocre-runtime container takes a while to download all the dependencies (`west update`) the first time that is created. You can check if the progess of the process by checking the logs of the container (`docker logs ocre-dev`), or waiting until you see the message `"West workspace initialized successfully"`.
-
-Finally, everything should be ready to build the Ocre application for Zephyr. 
-
-For example, to run the generic/blinky example on the default board, you can follow this 2 steps (summarizing all the previoius info):
-
-
-#### Terminal#1: Compile blinky example in `ocre-sdk` container:
-
-Get into the `ocre-sdk` container and build:
-
-~~~bash
-docker exec -it ocre-sdk bash
-cd ocre-sdk/generic/blinky
+docker exec -it ocre-wasm bash
+cd /workspace/ocre-runtime/ocre-sdk/generic/blinky
 mkdir -p build && cd build
 cmake ..
 make
-~~~
+```
 
-You should see something like this:
+The artifact is `blinky.wasm` in that `build` directory.
 
-~~~bash
-root@68bc3f6ddfac:/workspace/ocre-sdk/generic/blinky/build# cmake ..
--- Configuring done (0.0s)
--- Generating done (0.0s)
--- Build files have been written to: /workspace/ocre-sdk/generic/blinky/build
-root@68bc3f6ddfac:/workspace/ocre-sdk/generic/blinky/build# make
-[ 25%] Building C object ocre-sdk-build/CMakeFiles/ocre_api.dir/ocre_api.c.obj
-/workspace/ocre-sdk/ocre-sdk/ocre_api.c:174:9: warning: label at end of compound statement is a C23
-      extension [-Wc23-extensions]
-  174 |         }
-      |         ^
-1 warning generated.
-[ 50%] Linking C static library libocre_api.a
-[ 50%] Built target ocre_api
-[ 75%] Building C object CMakeFiles/blinky.wasm.dir/main.c.obj
-[100%] Linking C executable blinky.wasm
-[100%] Built target blinky.wasm
-~~~
+## Build and run on Zephyr (`native_sim`, no board)
 
-#### Terminal#2: Use the `blinky.wasm` file into Zephyr build and run the example
+Use **ocre-zephyr** after WASM is built (or rely on the sample default `hello-world.wasm` by omitting `OCRE_INPUT_FILE`).
 
-Get into the container and use the `build.sh` script to compile. Pass the `blinky.wasm` file as `-f` parameter:
+From the **west workspace root** (`/workspace`), build the mini Zephyr sample with an explicit guest image, then run the simulator:
 
-~~~bash
-docker exec -it ocre-dev bash
-cd /workspace/application
-./build.sh -t z -f ../ocre-sdk/generic/blinky/build/blinky.wasm -r
-~~~
-
-You should see the blinky example starting on the default board:
-
-~~~bash
-*** Booting Zephyr OS build v4.2.0-32-g8d0d392f8cc7 ***
-I: /lfs mount: 0
-
-I: OCRE common initialized successfully
-I: Registered cleanup handler for type 0
-I: Timer system initialized
-I: Registered cleanup handler for type 3
-I: Messaging system initialized
-I: Container Supervisor started.
-
-ocre:~$ 
-
-Ocre runtime started
-I: Request to create new container in slot: 0
-I: Request to run container in slot:0
-I: EVENT_CREATE_CONTAINER
-I: Allocating memory for container 0
-I: File path: /lfs/ocre/images/blinky.bin, size: 21068
-I: Loaded binary to buffer for container 0
-W: Created container:0
-I: Created container in slot:0
-I: EVENT_RUN_CONTAINER
-I: Instantiating WASM runtime for container:0
-I: Module registered: 0x80ebb00
-W: Running container:0 in dedicated thread
-I: Started container in slot:0
-I: Container thread 0 started
-=== Generic Blinky Example (Printf Only) ===
-This example demonstrates software blinking without physical hardware.
-I: Registered dispatcher for type 0: timer_callback
-I: Incremented resource count: type=0, count=1
-I: Created timer 1 for module 0x80ebb00
-Timer created. ID: 1, Interval: 1000ms
-I: Started timer 1 with interval 1000ms, periodic=1
-Generic blinking started. You should see 'blink' messages every 1000ms.
-Press Ctrl+C to stop.
-blink (count: 1, state: -)
-blink (count: 2, state: +)
-...
-~~~
-
-## Creating your own wasm app (your own container)
-
-To avoid modifying the [`./ocre-sdk`](./ocre-sdk/) repository when creating apps, I created a copy of the [`generic/blinky`](./ocre-sdk/generic/blinky/) example into the root dir of the repo and renamed as [`my_blinky`](./my_blinky/). Dir layout will look like this:
-
-~~~bash
-├── ocre-sdk/        # needed to create your wasm container
-├── application/     # zephyr project that has to embed your wasm container
-├── ...
-└── my_blinky/       # << your project! normal dir or git submodule (better!)
-~~~
-
-This would be my recommended flow for creating new wasm apps:
-
-* Make a copy of this repo, or just select "Use this template in GitHub"
-* Update the Ocre-SDK and Ocre-Runtime submodules to the latest or any tag you prefer/need
-* make a copy of the most similar example into the root dir of this repo (or even better encapsulated, track it as a submodule)
-* Compile your wasm app in the Ocre-SDK container as shown in [this section](#generating-wasm-files-from-example-containers)
-
-
-~~~bash
-docker compose up -d
-docker exec -it ocre-sdk bash
-
-cd /workspace/my_blinky
-mkdir -p build
+```bash
+docker exec -it ocre-zephyr bash
+cd /workspace
+west build -p always -b native_sim ocre-runtime/src/samples/mini/zephyr -- \
+  -DOCRE_INPUT_FILE=/workspace/ocre-runtime/ocre-sdk/generic/blinky/build/blinky.wasm
 cd build
+west build -t run
+```
+
+To use the bundled default container instead, drop the `-- -DOCRE_INPUT_FILE=...` arguments.
+
+## Build and run on Linux (posix mini)
+
+Use **ocre-linux** (not the Zephyr container). [WASI-SDK](https://github.com/WebAssembly/wasi-sdk) is not required for the host `ocre_mini` binary; the image installs CMake, a compiler, and `llvm-dev` for the WAMR/AOT pieces pulled in by the runtime CMake.
+
+```bash
+docker exec -it ocre-linux bash
+cd /workspace/ocre-runtime
+git submodule update --init --recursive
+rm -rf build && mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DOCRE_BUILD_DEMO_CONTAINERS=OFF
+make -j"$(nproc)"
+./src/samples/mini/posix/ocre_mini
+```
+
+`-DOCRE_BUILD_DEMO_CONTAINERS=OFF` skips embedding extra WASI demo containers (which expect a full WASI SDK in this image). The mini sample still bundles the default `hello-world.wasm`.
+
+## Your own guest app (`my_blinky`)
+
+[`my_blinky/CMakeLists.txt`](./my_blinky/CMakeLists.txt) points at `../ocre-runtime/ocre-sdk/ocre-sdk` for the Ocre API static library.
+
+Build in **ocre-wasm**:
+
+```bash
+docker exec -it ocre-wasm bash
+cd /workspace/my_blinky
+mkdir -p build && cd build
 cmake ..
 make
-~~~
+```
 
-* Then, as you may guess, you can follow the steps described in [this section](#building-ocre-for-zephyr-targets). So, jump into the ocre-runtime container and run the `build.sh` script:
+Then build Zephyr mini with your wasm (same pattern as blinky, adjust the path):
 
-~~~bash
-docker exec -it ocre-dev bash
-cd /workspace/application
-./build.sh -t z -f ../my_blinky/build/my_blinky.wasm -r
-~~~
+```bash
+docker exec -it ocre-zephyr bash
+cd /workspace
+west build -p always -b native_sim ocre-runtime/src/samples/mini/zephyr -- \
+  -DOCRE_INPUT_FILE=/workspace/my_blinky/build/my_blinky.wasm
+cd build && west build -t run
+```
 
-~~~mermaid
+```mermaid
 flowchart TD
-    zephyr[Zephyr SDK]
-    binary[binary zephyr.elf]
-    container[container.wasm]
+  zephyr[Zephyr SDK]
+  binary[native_sim zephyr.exe]
+  wasm[guest.wasm]
 
-    subgraph "**OcreSDK**"
-        sdk[Ocre SDK]
-        wasm_runtime[wasm-micro-runtime]
-    end
+  subgraph nested [ocre-runtime/ocre-sdk]
+    sdk[Guest SDK and examples]
+  end
 
-    subgraph "**OcreRuntime**"
-        app[`./application` Zephyr project]
-        container_moved[container.wasm]
-    end
+  subgraph root [Workspace root]
+    my[my_blinky or other guests]
+  end
 
-    subgraph "**myBlinky**"
-        my_blinky_app[my_blinky_app]
-    end
-
-    sdk --> container
-    wasm_runtime --> container
-    my_blinky_app --> container
-
-
-    container --> container_moved
-    
-    zephyr --> binary
-    container_moved --> app
-    app --> binary
-~~~
+  my --> wasm
+  sdk --> wasm
+  wasm --> mini[mini Zephyr sample CMake]
+  zephyr --> binary
+  mini --> binary
+```
 
 ## Contributing
 
-Pull requests are welcome. For major changes, please open an issue first
-to discuss what you would like to change.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 Please make sure to update tests as appropriate.
 

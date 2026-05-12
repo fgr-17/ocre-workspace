@@ -23,10 +23,17 @@ install_xxd() {
 
 init_zephyr_env() {
 
+    # Migrate older workspaces that used the "application" manifest directory name.
+    if [ -f /workspace/.west/config ] && grep -q '^path = application' /workspace/.west/config 2>/dev/null; then
+        echo "Updating west manifest path: application -> ocre-runtime"
+        sed -i 's/^path = application$/path = ocre-runtime/' /workspace/.west/config
+    fi
+
     if [ ! -f /workspace/.west/config ]; then
-        west init -l /workspace/application
-        cd /workspace/application
+        west init -l /workspace/ocre-runtime
+        cd /workspace/ocre-runtime
         west update
+        west zephyr-export 2>/dev/null || true
 
         touch /workspace/.west/initialized
         echo "West workspace initialized successfully"
@@ -48,11 +55,12 @@ set -e
 
 echo "Initializing west workspace..."
 
-git config --global --add safe.directory /workspace/application
-git config --global --add safe.directory /workspace/application
-git config --global --add safe.directory /workspace/ocre-sdk
+git config --global --add safe.directory /workspace/ocre-runtime
+git config --global --add safe.directory /workspace/ocre-runtime/ocre-sdk
+git config --global --add safe.directory /workspace/ocre-runtime/wasm-micro-runtime
 
 install_xxd
+pip3 install --no-cache-dir littlefs-python >/dev/null 2>&1 || pip3 install --no-cache-dir littlefs-python
 init_zephyr_env
 
 exec "$@"

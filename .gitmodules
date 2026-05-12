@@ -1,6 +1,3 @@
-[submodule "ocre-sdk"]
-	path = ocre-sdk
-	url = https://github.com/project-ocre/ocre-sdk.git
-[submodule "application"]
-	path = application
+[submodule "ocre-runtime"]
+	path = ocre-runtime
 	url = https://github.com/project-ocre/ocre-runtime.git

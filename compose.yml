@@ -1,22 +1,31 @@
 services:
-  ocre-sdk:
+  ocre-wasm:
     build:
       context: .
       dockerfile: Dockerfile.sdk
-    container_name: ocre-sdk
+    container_name: ocre-wasm
     volumes:
       - .:/workspace
     stdin_open: true
     tty: true
 
-  ocre-dev:
+  ocre-zephyr:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: ocre-dev
+    container_name: ocre-zephyr
     volumes:
       - .:/workspace
     stdin_open: true
     tty: true
     user: root
 
+  ocre-linux:
+    build:
+      context: .
+      dockerfile: Dockerfile.linux
+    container_name: ocre-linux
+    volumes:
+      - .:/workspace
+    stdin_open: true
+    tty: true

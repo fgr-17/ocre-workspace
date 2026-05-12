@@ -1,4 +1,4 @@
-FROM ghcr.io/zephyrproject-rtos/zephyr-build:latest
+FROM ghcr.io/zephyrproject-rtos/zephyr-build:v0.29.2
 
 USER root
 WORKDIR /workspace
