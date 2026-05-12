@@ -33,13 +33,14 @@ init_zephyr_env() {
         west init -l /workspace/ocre-runtime
         cd /workspace/ocre-runtime
         west update
-        west zephyr-export 2>/dev/null || true
 
         touch /workspace/.west/initialized
         echo "West workspace initialized successfully"
     else
         echo "West workspace already initialized"
     fi
+
+    cd /workspace/ocre-runtime && west zephyr-export 2>/dev/null || true
 
     if [ -f /workspace/zephyr/zephyr-env.sh ]; then
         echo "Sourcing Zephyr environment..."

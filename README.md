@@ -69,7 +69,14 @@ docker exec -it ocre-zephyr bash
 docker exec -it ocre-linux bash
 ```
 
-The Zephyr container runs [`scripts/entrypoint-dev.sh`](./scripts/entrypoint-dev.sh): migrates an old west manifest path `application` → `ocre-runtime` if needed, runs `west init -l /workspace/ocre-runtime`, `west update`, `west zephyr-export`, and installs `littlefs-python` for the Ocre module. The first start can take a long time; watch `docker logs ocre-zephyr` until you see `West workspace initialized successfully`.
+The Zephyr container runs [`scripts/entrypoint-dev.sh`](./scripts/entrypoint-dev.sh): migrates an old west manifest path `application` → `ocre-runtime` if needed, runs `west init -l /workspace/ocre-runtime` and `west update` when `.west/` is missing, runs **`west zephyr-export` on every start**, and installs `littlefs-python` for the Ocre module. The first start can take a long time; watch `docker logs ocre-zephyr` until you see `West workspace initialized successfully`.
+
+To **fully reset** the west workspace (for example after renaming directories or fixing a broken `west update`), delete `.west/` and the top-level `build/` folder, then restart `ocre-zephyr`. If Docker created them as root, from the host you can run:
+
+```bash
+docker run --rm -v "$(pwd)":/w alpine:latest rm -rf /w/.west /w/build
+docker compose up -d ocre-zephyr --force-recreate
+```
 
 After upgrading this template, run `west update` once inside `ocre-runtime` (or from the Zephyr container: `cd /workspace/ocre-runtime && west update`) so the Zephyr tree matches [`ocre-runtime/west.yml`](./ocre-runtime/west.yml).
 
