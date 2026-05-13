@@ -13,9 +13,9 @@ add_compile_options(
 )
 
 # Add the ocre-sdk as a subdirectory and build it
-set(OCRE_SDK_PATH "../ocre-sdk/ocre-sdk")
+set(OCRE_SDK_PATH "../ocre-runtime/ocre-sdk/ocre-sdk")
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${OCRE_SDK_PATH}/CMakeLists.txt")
-    message(FATAL_ERROR "ocre-sdk not found at ${OCRE_SDK_PATH}. Please ensure the ocre-sdk directory exists and contains CMakeLists.txt")
+    message(FATAL_ERROR "ocre-sdk not found at ${OCRE_SDK_PATH}. Run: git submodule update --init --recursive in ocre-runtime")
 endif()
 
 add_subdirectory(${OCRE_SDK_PATH} ocre-sdk-build)
